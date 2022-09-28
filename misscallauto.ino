@@ -33,6 +33,7 @@ void setup()
     pinMode(buzzer, OUTPUT);
     pinMode(sensor1, INPUT_PULLUP);
     pinMode(sensor2, INPUT_PULLUP);
+    buzz(3000);
 }
 
 void loop()
@@ -59,6 +60,7 @@ void loop()
             digitalWrite(relay1, HIGH);
             delay(1000);
             digitalWrite(relay1, LOW);
+            buzz(1000);
             if (outCall == true)
             {
                 callBack();
@@ -70,6 +72,7 @@ void loop()
             digitalWrite(relay2, HIGH);
             delay(1000);
             digitalWrite(relay2, LOW);
+            buzz(1000);
             if (outCall == true)
             {
                 callBack();
@@ -83,6 +86,7 @@ void loop()
         digitalWrite(relay2, HIGH);
         delay(1000);
         digitalWrite(relay2, LOW);
+        buzz(1000);
         while (digitalRead(sensor1) == LOW && digitalRead(sensor2) == LOW);        
    }
 
@@ -185,4 +189,10 @@ void readNum()
         authNum2 += (char)EEPROM.read(i);
     }
     lastState = EEPROM.read(lastStateAddress);
+}
+
+void buzz(int delayTime){
+    digitalWrite(buzzer, HIGH);
+    delay(delayTime);
+    digitalWrite(buzzer, LOW);
 }
