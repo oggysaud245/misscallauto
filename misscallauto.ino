@@ -1,14 +1,15 @@
 #include <SoftwareSerial.h>
 #include <EEPROM.h>
-#define relay1 9
-#define relay2 10
-#define sensor1 6
-#define sensor2 7
-#define buzzer 8
+#define relay1 10
+#define relay2 9
+#define sensor1 5
+#define sensor2 6
+#define buzzer 7
 SoftwareSerial gsm(3, 4);
 String _data, number, authNum, authNum1, authNum2;
 bool inCall = false;
 bool lastState = false;
+bool oneTime = true;
 bool outCall = false;
 byte lastStateAddress = 35;
 
@@ -19,8 +20,7 @@ void setup()
     gsm.begin(9600);
     delay(20);
     smsMode();
-    //    gsm.println("ATD + +9779866577453;");
-    Serial.println("Read authorized Number...");
+    Serial.println("Reading authorized Number...");
     readNum();
     Serial.print("Number 1 = ");
     Serial.println(authNum1);
@@ -38,8 +38,12 @@ void setup()
 
 void loop()
 {
-    if (digitalRead(sensor1) == HIGH && digitalRead(sensor2) == HIGH)
+    // Serial.println(digitalRead(sensor1));
+    // Serial.println(digitalRead(sensor2));
+
+    if (digitalRead(sensor1) == LOW && digitalRead(sensor2) == LOW)
     {
+        // Serial.println("normal operation");
         serialEvent();
         if ((number == authNum1 || number == authNum2) && inCall == true)
         {
@@ -48,6 +52,7 @@ void loop()
             EEPROM.write(lastStateAddress, lastState = !lastState);
             inCall = false;
             outCall = true;
+            oneTime = true;
         }
         else if ((number != authNum1 || number != authNum2) && inCall == true)
         {
@@ -55,8 +60,10 @@ void loop()
             Serial.println("unauthorized number");
             inCall = false;
         }
-        if (lastState == true)
+
+        if (lastState == true && oneTime == true)
         {
+            Serial.println("relay1 changes");
             digitalWrite(relay1, HIGH);
             delay(1000);
             digitalWrite(relay1, LOW);
@@ -66,46 +73,56 @@ void loop()
                 callBack();
             }
             outCall = false;
+            oneTime = false;
         }
-        else if (lastState == false)
+        else if (lastState == false && oneTime == true)
+        {
+            Serial.println("relay2 changes");
+            digitalWrite(relay2, HIGH);
+            delay(1000);
+            digitalWrite(relay2, LOW);
+            buzz(1000);
+            oneTime = false;
+        }
+    }
+    else
+    {
+        if (lastState == true)
         {
             digitalWrite(relay2, HIGH);
             delay(1000);
             digitalWrite(relay2, LOW);
             buzz(1000);
-            if (outCall == true)
-            {
-                callBack();
-            }
-            outCall = false;
+            oneTime = true;
         }
-        if (number.length() > 3)
-            number = "";
+        Serial.println("Sensor Failure");
+        while ((digitalRead(sensor1) == HIGH && digitalRead(sensor2) == HIGH) ||(digitalRead(sensor1) == HIGH && digitalRead(sensor2) == LOW) || (digitalRead(sensor1) == LOW && digitalRead(sensor2) == HIGH))
+        {
+            Serial.print(".");
+            delay(1000);
+        }
     }
-   else{
-        digitalWrite(relay2, HIGH);
-        delay(1000);
-        digitalWrite(relay2, LOW);
-        buzz(1000);
-        while (digitalRead(sensor1) == LOW && digitalRead(sensor2) == LOW);        
-   }
-
 }
 void callBack()
 {
     String cmd;
+    Serial.println("Calling Back...");
+    delay(5000);
     if (number == authNum1)
     {
-        cmd = "ATD+ +977" + authNum1 + ";";
+        cmd = "ATD" + authNum1 + ";";
+        Serial.println(cmd);
         gsm.println(cmd);
     }
     else if (number == authNum2)
     {
-        cmd = "ATD+ +977" + authNum2 + ";";
+        cmd = "ATD" + authNum2 + ";";
+        Serial.println(cmd);
         gsm.println(cmd);
     }
-    delay(10000);
+    delay(5000);
     gsm.println("ATH");
+    Serial.println("Call End");
 }
 void serialEvent()
 {
@@ -116,31 +133,34 @@ void serialEvent()
         Serial.println(_data);
         delay(10);
         // Serial.flush();
-        if (_data.indexOf("+977") >= 3 && _data.indexOf("+CLIP: \"") >= 0)
+        if (_data.length() > 10)
         {
-            number = _data.substring(_data.indexOf("+977") + 4, _data.indexOf("+977") + 4 + 10);
-            // Serial.println(number);
-            inCall = true;
-        }
-        else if (_data.indexOf("+CLIP: \"") >= 0)
-        {
-            number = _data.substring(_data.indexOf("+CLIP: \"") + 8, _data.indexOf("+CLIP: \"") + 8 + 10);
-            // Serial.println(number);
-            inCall = true;
-        }
-        else if (_data.indexOf("SET NUM1") == 1)
-        {
-            Serial.println("sms received");
-            authNum = _data.substring(_data.indexOf("9"), _data.indexOf("9") + 10);
-            Serial.println(authNum);
-            storeNum(1, authNum);
-        }
-        else if (_data.indexOf("SET NUM2") == 1)
-        {
-            Serial.println("sms received");
-            authNum = _data.substring(_data.indexOf("9"), _data.indexOf("9") + 10);
-            Serial.println(authNum);
-            storeNum(2, authNum);
+            if (_data.indexOf("+977") >= 3 && _data.indexOf("+CLIP: \"") >= 0)
+            {
+                number = _data.substring(_data.indexOf("+977") + 4, _data.indexOf("+977") + 4 + 10);
+                Serial.println(number);
+                inCall = true;
+            }
+            else if (_data.indexOf("+CLIP: \"") >= 0)
+            {
+                number = _data.substring(_data.indexOf("+CLIP: \"") + 8, _data.indexOf("+CLIP: \"") + 8 + 10);
+                Serial.println(number);
+                inCall = true;
+            }
+            else if (_data.indexOf("SET NUM1") == 1)
+            {
+                Serial.println("sms received");
+                authNum = _data.substring(_data.indexOf("9"), _data.indexOf("9") + 10);
+                Serial.println(authNum);
+                storeNum(1, authNum);
+            }
+            else if (_data.indexOf("SET NUM2") == 1)
+            {
+                Serial.println("sms received");
+                authNum = _data.substring(_data.indexOf("9"), _data.indexOf("9") + 10);
+                Serial.println(authNum);
+                storeNum(2, authNum);
+            }
         }
     }
     _data = "";
@@ -191,7 +211,8 @@ void readNum()
     lastState = EEPROM.read(lastStateAddress);
 }
 
-void buzz(int delayTime){
+void buzz(int delayTime)
+{
     digitalWrite(buzzer, HIGH);
     delay(delayTime);
     digitalWrite(buzzer, LOW);
